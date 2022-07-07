@@ -1,11 +1,11 @@
-from hypothesis import given
+from hypothesis import assume, given
 import pytest
 
-from snakey import Snake, SnakeyGame
-from hypothesis.strategies import lists, sets, tuples, integers, composite
+from snakey import GameMove, Snake, SnakeyGame
+from hypothesis.strategies import lists, sets, tuples, integers, composite, sampled_from
 
 position_strategy = tuples(integers(min_value=0), integers(min_value=0))
-positions_strategy = lists(position_strategy)
+positions_strategy = lists(position_strategy, min_size=1)
 
 
 @composite
@@ -38,7 +38,10 @@ def get_snakey_game(draw):
         for _ in range(draw(integers(max_value=cells_count)))
     ]
 
-    return SnakeyGame(max_x, max_y, foods=foods, snakes=snakes)
+    game = SnakeyGame(max_x, max_y, foods=foods, snakes=snakes)
+    game.get_empty_spaces()
+
+    return game
 
 
 @given(positions_strategy)
@@ -59,6 +62,40 @@ def test_Snake_get_length(positions):
     assert snake.get_length() == len(positions)
 
 
+@given(
+    positions_strategy,
+    sampled_from([GameMove.UP, GameMove.DOWN, GameMove.LEFT, GameMove.RIGHT]),
+)
+def test_Snake_move_with_ate_food(positions, move):
+    snake = Snake(positions=positions)
+    original_positions = positions[:]
+
+    snake.move(move, ate_food=True)
+
+    new_positions = snake.positions
+    assert new_positions != original_positions
+    assert len(new_positions) - 1 == len(original_positions)
+    for i in range(0, len(original_positions)):
+        assert original_positions[i] == new_positions[i + 1]
+
+
+@given(
+    positions_strategy,
+    sampled_from([GameMove.UP, GameMove.DOWN, GameMove.LEFT, GameMove.RIGHT]),
+)
+def test_Snake_move_only_swaps_one_spot(positions, move):
+    snake = Snake(positions=positions)
+    original_positions = positions[:]
+
+    snake.move(move)
+
+    new_positions = snake.positions
+    assert new_positions != original_positions
+    assert len(new_positions) == len(original_positions)
+    for i in range(0, len(new_positions) - 1):
+        assert original_positions[i] == new_positions[i + 1]
+
+
 @given(get_snakey_game())
 def test_SnakeyGame_get_empty_spaces(snakey_game: SnakeyGame):
     empty_spaces = snakey_game.get_empty_spaces()
@@ -68,3 +105,24 @@ def test_SnakeyGame_get_empty_spaces(snakey_game: SnakeyGame):
     for snake in snakes:
         for position in snake.get_positions():
             assert position not in empty_spaces
+
+
+@given(get_snakey_game(), integers(min_value=0))
+def test_SnakeyGame_add_food(snakey_game: SnakeyGame, foods_to_add: int):
+    initial_food_count = len(snakey_game.foods)
+    empty_spaces = snakey_game.get_empty_spaces()
+    expected_food_count = initial_food_count + min(foods_to_add, len(empty_spaces))
+    assume(len(empty_spaces) >= foods_to_add)
+
+    snakey_game.add_food(count=foods_to_add)
+
+    empty_spaces = snakey_game.get_empty_spaces()
+    after_food_count = len(snakey_game.foods)
+    food_positions, snakes = snakey_game.foods, snakey_game.snakes
+
+    assert expected_food_count == after_food_count
+    for position in food_positions:
+        assert position not in empty_spaces
+    for snake in snakes:
+        for position in snake.get_positions():
+            assert position not in food_positions
