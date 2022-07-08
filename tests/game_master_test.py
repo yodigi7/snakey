@@ -75,10 +75,10 @@ def test_clean_out_snakes_removes_snakes(game_master: GameMaster, PlayerClass: P
     player2 = PlayerClass(2)
     player3 = PlayerClass(3)
     game_master.add_player(player1)
-    snake1 = game_master.game.snakes[0]
     game_master.add_player(player2)
-    snake2 = game_master.game.snakes[1]
     game_master.add_player(player3)
+    snake1 = game_master.game.snakes[0]
+    snake2 = game_master.game.snakes[1]
     snake3 = game_master.game.snakes[2]
 
     game_master._clean_out_snakes([snake1, snake2])
